@@ -42,6 +42,7 @@ def build_profile_text(
     skills: str,
     experience: str,
     education: str,
+    summary: str = "",
 ) -> str:
     """Combine the structured form inputs into one block for the model prompt."""
     return (
@@ -50,6 +51,7 @@ def build_profile_text(
         f"Phone: {phone}\n"
         f"Location: {location}\n"
         f"Links: {links}\n\n"
+        f"Professional summary:\n{summary}\n\n"
         f"Skills:\n{skills}\n\n"
         f"Experience:\n{experience}\n\n"
         f"Education:\n{education}"

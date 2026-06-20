@@ -1,18 +1,28 @@
-"""Claude-backed generation of the tailored resume, cover letter, and skill analysis.
+"""Generate the tailored resume, cover letter, and skill analysis via any provider.
 
-A single structured-output call returns one validated ``GenerationResult``.
+A single structured-output call (through ``providers.complete_structured``) returns one
+validated ``GenerationResult``.
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-import anthropic
-
 from .models import GenerationResult
+from .providers import GenerationError, complete_structured
 
-# Default model. The UI may override this (e.g. claude-sonnet-4-6 for speed/cost).
+# Default provider/model. The UI may override these.
+DEFAULT_PROVIDER = "Anthropic"
 DEFAULT_MODEL = "claude-opus-4-8"
+
+__all__ = [
+    "DEFAULT_PROVIDER",
+    "DEFAULT_MODEL",
+    "GenerationError",
+    "SYSTEM_PROMPT",
+    "build_user_message",
+    "generate",
+]
 
 SYSTEM_PROMPT = """You are an expert career coach and professional resume writer.
 
@@ -41,10 +51,6 @@ Rules:
 """
 
 
-class GenerationError(Exception):
-    """Raised with a user-friendly message when generation fails."""
-
-
 def build_user_message(profile_text: str, job_description: str) -> str:
     """Assemble the user turn from the candidate profile and job description."""
     return (
@@ -59,41 +65,19 @@ def build_user_message(profile_text: str, job_description: str) -> str:
 def generate(
     profile_text: str,
     job_description: str,
+    provider: str = DEFAULT_PROVIDER,
     model: str = DEFAULT_MODEL,
-    client: Optional["anthropic.Anthropic"] = None,
+    client: Optional[object] = None,
 ) -> GenerationResult:
-    """Call Claude and return a validated ``GenerationResult``.
+    """Generate a validated ``GenerationResult`` using the chosen provider/model.
 
-    The API key is read from ``ANTHROPIC_API_KEY`` by the default Anthropic client.
-    A client may be injected (used in tests). Raises ``GenerationError`` with a clean
-    message on any failure.
+    Raises ``GenerationError`` with a clean message on any failure.
     """
-    if client is None:
-        client = anthropic.Anthropic()
-
-    try:
-        response = client.messages.parse(
-            model=model,
-            max_tokens=16000,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_user_message(profile_text, job_description),
-                }
-            ],
-            output_format=GenerationResult,
-        )
-    except anthropic.AuthenticationError as exc:
-        raise GenerationError(
-            "Authentication failed. Check that ANTHROPIC_API_KEY is set to a valid key."
-        ) from exc
-    except anthropic.APIError as exc:
-        raise GenerationError(f"The Claude API request failed: {exc}") from exc
-
-    result = response.parsed_output
-    if result is None:
-        raise GenerationError(
-            "The model did not return a valid structured result. Please try again."
-        )
-    return result
+    return complete_structured(
+        provider,
+        model,
+        SYSTEM_PROMPT,
+        build_user_message(profile_text, job_description),
+        GenerationResult,
+        client,
+    )

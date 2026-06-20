@@ -79,3 +79,24 @@ class GenerationResult(BaseModel):
         )
     )
     skill_analysis: SkillAnalysis
+
+
+class ExtractedProfile(BaseModel):
+    """Flat, form-shaped profile extracted from an uploaded resume.
+
+    Every field is a plain string so it can prefill the editable form text areas.
+    Multi-valued fields (links, skills) are returned as comma/newline-separated text.
+    """
+
+    name: str = Field(default="", description="Full name")
+    email: str = Field(default="", description="Email address")
+    phone: str = Field(default="", description="Phone number")
+    location: str = Field(default="", description="City/region")
+    links: str = Field(default="", description="Links (LinkedIn, GitHub, portfolio), comma-separated")
+    summary: str = Field(default="", description="Professional summary / objective, if present")
+    skills: str = Field(default="", description="Skills as a comma-separated list")
+    experience: str = Field(
+        default="",
+        description="Work experience as readable text: role, company, dates, and what they did.",
+    )
+    education: str = Field(default="", description="Education: degree, institution, year")

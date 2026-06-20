@@ -9,10 +9,19 @@ from resume_agent.models import (
     ContactInfo,
     EducationItem,
     ExperienceItem,
+    ExtractedProfile,
     GenerationResult,
     ResumeData,
     SkillAnalysis,
 )
+
+
+def test_extracted_profile_defaults():
+    p = ExtractedProfile()
+    assert (
+        p.name == p.email == p.phone == p.location == p.links
+        == p.summary == p.skills == p.experience == p.education == ""
+    )
 
 
 def test_contact_defaults():

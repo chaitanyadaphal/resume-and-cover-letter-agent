@@ -6,12 +6,15 @@ This file is the thin presentation layer only — all reusable logic lives in th
 
 from __future__ import annotations
 
-import os
-
 import streamlit as st
 from dotenv import load_dotenv
 
-from resume_agent.app_logic import MODELS, validate_inputs
+from resume_agent.app_logic import (
+    PROVIDER_MODELS,
+    missing_key_message,
+    validate_inputs,
+)
+from resume_agent.extract import ExtractionError, extract_profile, extract_text
 from resume_agent.generator import GenerationError, generate
 from resume_agent.models import GenerationResult
 from resume_agent.pdf_export import cover_letter_pdf, resume_pdf
@@ -20,6 +23,10 @@ from resume_agent.text_utils import build_profile_text
 load_dotenv()
 
 st.set_page_config(page_title="AI Resume & Cover Letter Generator", page_icon="📄", layout="wide")
+
+# Form field keys -> ExtractedProfile attributes (used to prefill after import).
+_FIELD_KEYS = ("name", "email", "phone", "location", "links", "summary", "skills",
+               "experience", "education")
 
 
 def _render_resume(result: GenerationResult) -> None:
@@ -122,52 +129,74 @@ def _render_results(result: GenerationResult) -> None:
             st.caption("No suggestions provided.")
 
 
+def _import_section(provider: str, model: str, key_missing: bool) -> None:
+    """Upload a PDF/DOCX resume and prefill the form fields from it."""
+    with st.expander("📥 Import from an existing resume (optional)", expanded=False):
+        upload = st.file_uploader("Upload a PDF or DOCX resume", type=["pdf", "docx"])
+        if st.button("Extract details", disabled=key_missing or upload is None):
+            with st.spinner("Reading and extracting your resume..."):
+                try:
+                    text = extract_text(upload.getvalue(), upload.name)
+                    profile = extract_profile(text, provider, model)
+                except (ExtractionError, GenerationError) as exc:
+                    st.error(str(exc))
+                else:
+                    for field in _FIELD_KEYS:
+                        st.session_state[field] = getattr(profile, field)
+                    st.success("Details extracted — review and edit them below, then Generate.")
+                    st.rerun()
+
+
 def main() -> None:
     st.title("📄 AI Resume & Cover Letter Generator")
     st.write(
-        "Enter your details and a target job description. The app tailors a resume and "
-        "cover letter for that specific role, highlights skill gaps, and suggests "
-        "improvements."
+        "Enter your details (or import an existing resume) and a target job description. "
+        "The app tailors a resume and cover letter for that specific role, highlights "
+        "skill gaps, and suggests improvements."
     )
 
     with st.sidebar:
         st.header("Settings")
-        model_label = st.selectbox("Model", list(MODELS.keys()), index=0)
-        model = MODELS[model_label]
-        st.caption("Set ANTHROPIC_API_KEY in your environment or a .env file.")
+        provider = st.selectbox("Provider", list(PROVIDER_MODELS.keys()), index=0)
+        model = st.selectbox("Model", PROVIDER_MODELS[provider], index=0)
 
-    key_present = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    if not key_present:
-        st.error(
-            "**ANTHROPIC_API_KEY is not set.** Create a `.env` file with "
-            "`ANTHROPIC_API_KEY=your-key-here` (get a key from "
-            "https://console.anthropic.com) and restart the app."
-        )
+    key_message = missing_key_message(provider)
+    key_missing = key_message is not None
+    if key_missing:
+        st.error(key_message)
+
+    _import_section(provider, model, key_missing)
 
     with st.form("inputs"):
         st.subheader("1. Your details")
         c1, c2, c3 = st.columns(3)
-        name = c1.text_input("Full name")
-        email = c2.text_input("Email")
-        phone = c3.text_input("Phone")
+        name = c1.text_input("Full name", key="name")
+        email = c2.text_input("Email", key="email")
+        phone = c3.text_input("Phone", key="phone")
         c4, c5 = st.columns(2)
-        location = c4.text_input("Location")
-        links = c5.text_input("Links (LinkedIn, GitHub, portfolio)")
+        location = c4.text_input("Location", key="location")
+        links = c5.text_input("Links (LinkedIn, GitHub, portfolio)", key="links")
 
-        skills = st.text_area("Skills", placeholder="Python, SQL, project management, ...", height=80)
+        summary = st.text_area("Professional summary", key="summary", height=80)
+        skills = st.text_area(
+            "Skills", key="skills", placeholder="Python, SQL, project management, ...", height=80
+        )
         experience = st.text_area(
             "Work experience",
+            key="experience",
             placeholder="Role, company, dates, and what you did. One job per block.",
             height=160,
         )
-        education = st.text_area("Education", placeholder="Degree, institution, year", height=80)
+        education = st.text_area(
+            "Education", key="education", placeholder="Degree, institution, year", height=80
+        )
 
         st.subheader("2. Target job")
         job_description = st.text_area(
             "Paste the job description", placeholder="The role you're applying for...", height=200
         )
 
-        submitted = st.form_submit_button("✨ Generate", type="primary", disabled=not key_present)
+        submitted = st.form_submit_button("✨ Generate", type="primary", disabled=key_missing)
 
     if submitted:
         error = validate_inputs(name, experience, job_description)
@@ -175,11 +204,13 @@ def main() -> None:
             st.error(error)
         else:
             profile = build_profile_text(
-                name, email, phone, location, links, skills, experience, education
+                name, email, phone, location, links, skills, experience, education, summary
             )
             with st.spinner("Tailoring your resume and cover letter..."):
                 try:
-                    st.session_state["result"] = generate(profile, job_description, model=model)
+                    st.session_state["result"] = generate(
+                        profile, job_description, provider=provider, model=model
+                    )
                 except GenerationError as exc:
                     st.session_state.pop("result", None)
                     st.error(str(exc))
