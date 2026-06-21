@@ -47,7 +47,22 @@ def test_contact_line_custom_separator():
 
 def test_build_profile_text_contains_all_sections():
     text = build_profile_text(
-        "Jane", "a@b.com", "555", "Berlin", "gh/jane", "Python", "Dev at Acme", "BSc"
+        "Jane", "a@b.com", "555", "Berlin", "gh/jane", "Python", "Dev at Acme", "BSc",
+        "Seasoned engineer",
     )
-    for token in ("Name: Jane", "Email: a@b.com", "Skills:", "Python", "Experience:", "Education:"):
+    for token in (
+        "Name: Jane",
+        "Email: a@b.com",
+        "Professional summary:",
+        "Seasoned engineer",
+        "Skills:",
+        "Python",
+        "Experience:",
+        "Education:",
+    ):
         assert token in text
+
+
+def test_build_profile_text_summary_defaults_empty():
+    text = build_profile_text("Jane", "", "", "", "", "", "Dev", "BSc")
+    assert "Professional summary:\n\n" in text

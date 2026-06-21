@@ -4,16 +4,19 @@ A Streamlit app that turns your details and a target job description into a **ta
 resume** and **personalized cover letter**, then **highlights missing skills** and
 **suggests improvements**. Outputs are downloadable as **PDF**.
 
-Powered by Claude (Anthropic) via structured outputs.
+Works with **Anthropic (Claude)**, **OpenAI (GPT)**, or **DeepSeek** — pick a provider
+and model in the sidebar.
 
 ## Features
 
-- Clean input forms for personal details, skills, experience, education, and the job description
+- Choose your LLM provider/model: Anthropic, OpenAI, or DeepSeek
+- **Import an existing resume** (PDF or DOCX): the app extracts your details into the
+  form for review/editing before generating
+- Clean input forms for personal details, summary, skills, experience, education
 - One-click generation of a job-tailored resume and cover letter
 - Matched-skills / missing-skills gap analysis against the job description
 - Actionable improvement suggestions
 - Download the resume and cover letter as polished PDFs
-- Switch between Claude Opus 4.8 (best) and Sonnet 4.6 (faster/cheaper) in the sidebar
 
 ## Setup
 
@@ -33,11 +36,13 @@ Powered by Claude (Anthropic) via structured outputs.
    pip install -r requirements.txt
    ```
 
-3. Add your API key. Copy `.env.example` to `.env` and set your key
-   (get one from <https://console.anthropic.com>):
+3. Add an API key for whichever provider(s) you'll use. Copy `.env.example` to `.env`
+   and set the relevant key(s) — you only need the one for the provider you select:
 
    ```
-   ANTHROPIC_API_KEY=your-key-here
+   ANTHROPIC_API_KEY=...   # https://console.anthropic.com
+   OPENAI_API_KEY=...      # https://platform.openai.com/api-keys
+   DEEPSEEK_API_KEY=...    # https://platform.deepseek.com/api_keys
    ```
 
 ## Run
@@ -46,9 +51,11 @@ Powered by Claude (Anthropic) via structured outputs.
 streamlit run app.py
 ```
 
-The app opens at <http://localhost:8501>. Fill in your details and the job
-description, click **Generate**, then review the Resume, Cover Letter, and
-Skills & Improvements tabs and download the PDFs.
+The app opens at <http://localhost:8501>. In the sidebar, pick a **provider** and
+**model**. Optionally expand **Import from an existing resume** to upload a PDF/DOCX and
+auto-fill the form, then review/edit the fields. Paste the job description, click
+**Generate**, and review the Resume, Cover Letter, and Skills & Improvements tabs —
+then download the PDFs.
 
 ## Project structure
 
@@ -59,16 +66,21 @@ UI layer on top of it.
 app.py                     # Streamlit UI (presentation only)
 resume_agent/
   __init__.py              # package exports
-  models.py                # Pydantic schemas for the structured response
+  models.py                # Pydantic schemas (incl. ExtractedProfile)
   text_utils.py            # PDF-safe text sanitizing, contact line, profile block
-  generator.py             # Anthropic client call -> validated GenerationResult
+  providers.py             # Anthropic/OpenAI/DeepSeek structured-output calls
+  generator.py             # tailored resume + cover letter -> GenerationResult
+  extract.py               # PDF/DOCX text extraction + profile structuring
   pdf_export.py            # resume / cover letter -> PDF bytes (fpdf2)
-  app_logic.py             # model registry + input validation
+  app_logic.py             # provider registry + input/key validation
 tests/                     # pytest suite (100% line + branch coverage)
 requirements.txt           # runtime dependencies
 requirements-dev.txt       # + pytest, pytest-cov
 pyproject.toml             # pytest + coverage config
 ```
+
+All providers go through one abstraction (`providers.complete_structured`), used by
+both generation and resume extraction.
 
 ## Tests
 
